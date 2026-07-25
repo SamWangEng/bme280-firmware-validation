@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated test output (not source, regenerated every run)
+python/test_results.db
+
+# OS
+.DS_Store
+Thumbs.db
