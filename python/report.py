@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 
 DB_PATH = "test_results.db"
 
@@ -38,8 +39,10 @@ def main():
     print()
     if failed:
         print(f"RESULT: FAIL ({len(failed)} of {total} tests failed)")
+        sys.exit(1)
     else:
         print(f"RESULT: PASS (all {total} tests passed)")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
