@@ -76,7 +76,7 @@ def test_healthy_reading_has_consistent_bits(serial_conn, record_property):
 def test_consecutive_readings_are_stable(serial_conn, record_property):
     """Catches a sensor glitching wildly between readings, one second apart."""
     readings = [read_parsed_line(serial_conn) for _ in range(3)]
-    record_property("raw_reading", [repr(r) for r in readings])
+    record_property("raw_reading", ", ".join(repr(r) for r in readings))
 
     temps = [r.temp for r in readings if r.temp is not None]
     assert len(temps) >= 2, "not enough healthy readings to compare"
