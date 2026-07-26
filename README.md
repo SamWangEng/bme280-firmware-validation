@@ -18,8 +18,6 @@ automated Python test suite that mirrors real hardware validation practices.
   compensation formula implemented by hand.
 - `sketches/i2c_validate` - runs the raw implementation and the Adafruit
   library side by side to confirm they agree.
-- `bme280.chip.c` - a Wokwi custom chip simulating a BME280 for testing
-  without physical hardware.
 
 ## Phase 2 - Validation (Python)
 
