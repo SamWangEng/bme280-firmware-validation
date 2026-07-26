@@ -4,6 +4,8 @@ PORT = "COM3"  # change to match whatever port the Arduino IDE showed you
 BAUD = 9600
 
 def main():
+    # TODO: retry with backoff if the port is busy/locked instead of just
+    # crashing - not finished, ran out of time to test this properly.
     ser = serial.Serial(PORT, BAUD, timeout=1)
     print(f"Connected to {PORT} at {BAUD} baud. Reading lines (Ctrl+C to stop)...")
 
