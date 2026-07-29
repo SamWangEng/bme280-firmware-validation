@@ -1,12 +1,19 @@
+import os
 import time
 
 import pytest
 import serial
 
+from socket_serial import SocketSerial
 from status_parser import StatusLine, parse_status_line
 
 PORT = "COM3"  # change to match whatever port the Arduino IDE showed you
 BAUD = 9600
+
+# If set, connect to serial_bridge.py over TCP instead of opening a local COM
+# port - this is how the container reaches hardware attached to the host.
+BRIDGE_HOST = os.environ.get("SERIAL_BRIDGE_HOST")
+BRIDGE_PORT = int(os.environ.get("SERIAL_BRIDGE_PORT", "9000"))
 
 BIT_SENSOR_DETECTED = 0x01
 BIT_VALUE_IN_RANGE = 0x02
@@ -15,11 +22,14 @@ BIT_ERROR = 0x04
 
 @pytest.fixture(scope="module")
 def serial_conn():
-    ser = serial.Serial(PORT, BAUD, timeout=2)
-    time.sleep(2)  # let the Arduino finish resetting after the port opens
+    if BRIDGE_HOST:
+        ser = SocketSerial(BRIDGE_HOST, BRIDGE_PORT, timeout=2)
+    else:
+        ser = serial.Serial(PORT, BAUD, timeout=2)
+    time.sleep(2)  # give time to let the Arduino finish resetting after the port opens
     ser.reset_input_buffer()  # discard any stale/partial data from before we connected
     yield ser #Hands the now-ready ser object over to whichever test function requested it — this is the "setup is done, here's the resource" moment.
-    ser.close() # Runs only after all tests using this fixture have finished — closes the serial connection cleanly, freeing up the COM port 
+    ser.close() # Runs only after all tests using this fixture have finished — closes the serial connection cleanly, freeing up the COM port
 """
 With scope="module", the setup/teardown cycle runs only once total, shared across all test functions in that file — not once per test. Setup runs the first time any test in the file needs serial_conn, and teardown only runs once, after the last test in the file finishes.
 
@@ -35,7 +45,8 @@ If you'd used the default scope="function" instead, that's when you'd get "every
 """
 
 def read_parsed_line(ser) -> StatusLine:
-    # Read the line from firmware.ino Serial.print
+    # firmware.ino only sends a reading in response to 'Q' - nothing is pushed unprompted
+    ser.write(b"Q")
     raw = ser.readline().decode("utf-8", errors="replace").strip() # Converts those raw bytes into an actual readable Python string
     return parse_status_line(raw)
 
@@ -75,7 +86,10 @@ def test_healthy_reading_has_consistent_bits(serial_conn, record_property):
 
 def test_consecutive_readings_are_stable(serial_conn, record_property):
     """Catches a sensor glitching wildly between readings, one second apart."""
-    readings = [read_parsed_line(serial_conn) for _ in range(3)]
+    readings = []
+    for _ in range(3):
+        readings.append(read_parsed_line(serial_conn))
+        time.sleep(1)  # readings are now polled on demand, so space them out ourselves
     record_property("raw_reading", ", ".join(repr(r) for r in readings))
 
     temps = [r.temp for r in readings if r.temp is not None]
@@ -86,14 +100,16 @@ def test_consecutive_readings_are_stable(serial_conn, record_property):
 
 
 def wait_for_err(ser, expected_err, max_lines=10):
-    """Reads lines until one matches expected_err, or fails after max_lines tries.
+    """Polls for readings until one matches expected_err, or fails after max_lines tries.
 
-    Needed because the firmware only checks for a new 'F'/'R' command once per
-    loop iteration (~1/sec), so the change isn't reflected on the very next line.
-    Non-STATUS lines (e.g. the firmware's own "[debug] ..." prints, echoed back
-    right after we send a command) are skipped rather than treated as failures.
+    firmware.ino applies 'F'/'R' synchronously, so a 'Q' sent right after should
+    already reflect it - this retry loop is just defensive margin against
+    latency, not a requirement of the protocol. Non-STATUS lines (e.g. the
+    firmware's own "[debug] ..." prints, echoed back right after we send a
+    command) are skipped rather than treated as failures.
     """
     for _ in range(max_lines):
+        ser.write(b"Q")
         raw = ser.readline().decode("utf-8", errors="replace").strip()
         try:
             line = parse_status_line(raw)

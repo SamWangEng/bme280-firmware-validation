@@ -24,10 +24,10 @@ void setup() {
 
   hardwareDetected = bme.begin(BME280_ADDR);
 
-  Serial.println("Firmware ready. Send 'F' to inject a sensor failure, 'R' to clear it.");
+  Serial.println("Firmware ready. Send 'Q' for a reading, 'F' to inject a sensor failure, 'R' to clear it.");
 }
 
-void handle_debug_commands() {
+void handle_serial_commands() {
   while (Serial.available()) {
     char c = Serial.read();
     if (c == 'F' || c == 'f') {
@@ -36,13 +36,17 @@ void handle_debug_commands() {
     } else if (c == 'R' || c == 'r') {
       simulateFailure = false;
       Serial.println("[debug] fault cleared");
+    } else if (c == 'Q' || c == 'q') {
+      take_and_print_reading();
     }
   }
 }
 
 void loop() {
-  handle_debug_commands();
+  handle_serial_commands();  // nothing is ever sent unprompted - only in response to 'Q'
+}
 
+void take_and_print_reading() {
   bool sensorOk = hardwareDetected && !simulateFailure;
   float tempC = NAN;
   bool inRange = false;
@@ -76,6 +80,4 @@ void loop() {
   } else {
     Serial.println("NONE");
   }
-
-  delay(1000);
 }
