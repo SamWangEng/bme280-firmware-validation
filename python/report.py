@@ -1,7 +1,8 @@
+import os
 import sqlite3
 import sys
 
-DB_PATH = "test_results.db"
+DB_PATH = os.environ.get("DB_PATH", "test_results.db")
 
 
 def main():

@@ -5,6 +5,7 @@ __pycache__/
 
 # Generated test output (not source, regenerated every run)
 python/test_results.db
+python/data/
 
 # OS
 .DS_Store

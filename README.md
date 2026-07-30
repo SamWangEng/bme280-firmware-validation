@@ -72,8 +72,21 @@ docker build -t bme280-validation python/
 docker run --rm bme280-validation
 ```
 
-Full hardware-in-the-loop suite, via the serial bridge:
+Full hardware-in-the-loop suite, via the serial bridge. A container's
+filesystem is deleted when it exits (`--rm`), so `test_results.db` is written
+to a mounted host folder (`python/data/`) instead of living inside the
+container, letting it survive past that container's lifetime:
 ```
 python python/serial_bridge.py                          # on the host, wired to the Arduino
-docker run --rm -e SERIAL_BRIDGE_HOST=host.docker.internal bme280-validation python -m pytest test_firmware.py -v
+
+docker run --rm \
+  -e SERIAL_BRIDGE_HOST=host.docker.internal \
+  -e DB_PATH=/app/data/test_results.db \
+  -v "$(pwd)/data:/app/data" \
+  bme280-validation python -m pytest test_firmware.py -v
+
+docker run --rm \
+  -e DB_PATH=/app/data/test_results.db \
+  -v "$(pwd)/data:/app/data" \
+  bme280-validation python report.py
 ```

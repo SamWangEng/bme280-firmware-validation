@@ -1,9 +1,12 @@
 import datetime
+import os
 import sqlite3
 
 import pytest
 
-DB_PATH = "test_results.db"
+# Lets Docker runs redirect this into a mounted volume so it survives past
+# the container's lifetime; defaults to the old behavior for local runs.
+DB_PATH = os.environ.get("DB_PATH", "test_results.db")
 
 # Generated once when conftest.py is loaded - i.e. once per `pytest` invocation -
 # so every row logged during this run shares the same run_id, letting the report
@@ -38,7 +41,8 @@ def pytest_runtest_makereport(item, call):
         return  # ignore setup/teardown phases, only log the actual test run
 
     raw_reading = None
-    for name, value in item.user_properties: # item.user_properties is a list of any extra key/value data the test attached to itself via record_property(...) 
+    # item.user_properties is a list of any extra key/value data the test attached to itself via record_property(...) 
+    for name, value in item.user_properties:
         if name == "raw_reading":
             raw_reading = value
 
