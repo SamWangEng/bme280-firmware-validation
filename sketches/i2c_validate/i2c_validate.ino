@@ -1,6 +1,31 @@
 #include <Wire.h>
 #include <Adafruit_BME280.h>
 
+/*
+one is an address on the bus (which chip you're talking to), 
+the rest are addresses inside the chip (which internal register you're reading/writing). 
+It helps to think of the sensor chip like a tiny filing cabinet with numbered drawers, 
+and I2C as how you tell it "open drawer 0xFA and hand me what's in it.
+
+The register map — where things like 0x88 (calibration data), 0xF4 (control), 0xF3 (status), 0xFA (temperature) live — is Bosch's design.
+ When they designed the chip's internal circuitry, they decided "temperature data will live at this memory location, control settings at that one," and they published that layout in the BME280 datasheet
+
+REG_CTRL_MEAS = 0xF4 — the "control measurement" register. 
+You write to this one (not read) to configure and trigger a measurement — 
+things like oversampling settings and putting the sensor into forced or normal measurement mode.
+
+REG_STATUS: a status register you read to check what the chip is currently doing, 
+e.g., whether it's still busy taking a measurement or 
+updating its internal calibration/NVM data — 
+useful for knowing when it's safe to read the result instead of grabbing a half-finished measurement
+
+REG_TEMP_MSB = 0xFA — this is where the raw temperature reading itself starts. 
+Temperature is stored across three consecutive registers 
+(0xFA, 0xFB, 0xFC — most significant, least significant, and extra low bits), 
+which together form one raw 20-bit ADC value. 
+That raw value is what gets fed into the compensation formula along with the calibration coefficients from 0x88 to produce an actual °C reading.
+*/
+
 const uint8_t BME280_ADDR     = 0x76;  // use 0x77 if your scanner found the sensor there instead
 const uint8_t REG_CALIB_START = 0x88;
 const uint8_t REG_CTRL_MEAS   = 0xF4;
@@ -8,6 +33,8 @@ const uint8_t REG_STATUS      = 0xF3;
 const uint8_t REG_TEMP_MSB    = 0xFA;
 
 const uint8_t STATUS_MEASURING_BIT = 0x08;
+
+const float TEMP_TOLERANCE = 0.1;  // deg C - max allowed |RAW - LIB| before flagging a mismatch
 
 uint16_t dig_T1;
 int16_t  dig_T2;
@@ -98,13 +125,22 @@ void loop() {
   }
 
   float libTemp = bme.readTemperature();
+  float diff = rawTemp - libTemp;
 
   Serial.print("RAW:");
   Serial.print(rawTemp, 2);
   Serial.print("  LIB:");
   Serial.print(libTemp, 2);
   Serial.print("  DIFF:");
-  Serial.println(rawTemp - libTemp, 3);
+  Serial.print(diff, 3);
+
+  if (isnan(rawTemp)) {
+    Serial.println("  STATUS:SKIP (measurement timeout)");
+  } else if (fabs(diff) <= TEMP_TOLERANCE) {
+    Serial.println("  STATUS:PASS");
+  } else {
+    Serial.println("  STATUS:FAIL");
+  }
 
   delay(1000);
 }
